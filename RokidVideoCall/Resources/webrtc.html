@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; width: 100vw; height: 100vh; overflow: hidden; }
+#remoteVideo {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+}
+#localVideo {
+    position: absolute; bottom: 16px; right: 16px;
+    width: 120px; height: 90px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 2px solid rgba(255,255,255,0.3);
+    z-index: 10;
+}
+#status {
+    position: absolute; top: 20px; left: 50%;
+    transform: translateX(-50%);
+    color: white; font-family: -apple-system, sans-serif;
+    font-size: 14px; background: rgba(0,0,0,0.5);
+    padding: 4px 12px; border-radius: 12px;
+    z-index: 10;
+}
+</style>
+</head>
+<body>
+<video id="remoteVideo" autoplay playsinline></video>
+<video id="localVideo" autoplay playsinline muted></video>
+<div id="status">Initializing...</div>
+
+<script>
+let pc = null;
+let localStream = null;
+let iceCandidateQueue = [];
+let isConnected = false;
+
+const remoteVideo = document.getElementById('remoteVideo');
+const localVideo = document.getElementById('localVideo');
+const statusEl = document.getElementById('status');
+
+function setStatus(text) {
+    statusEl.textContent = text;
+    window.webkit.messageHandlers.webrtc.postMessage({ event: 'status', text });
+}
+
+function postMessage(msg) {
+    window.webkit.messageHandlers.webrtc.postMessage(msg);
+}
+
+// Called from Swift
+function initWebRTC(config) {
+    const iceServers = [{ urls: config.stunServer }];
+    if (config.turnServer) {
+        iceServers.push({
+            urls: config.turnServer,
+            username: config.turnUsername || '',
+            credential: config.turnPassword || ''
+        });
+    }
+
+    pc = new RTCPeerConnection({ iceServers });
+
+    pc.onicecandidate = (e) => {
+        if (e.candidate) {
+            postMessage({ event: 'iceCandidate', candidate: e.candidate.toJSON() });
+        }
+    };
+
+    pc.ontrack = (e) => {
+        if (e.streams && e.streams[0]) {
+            remoteVideo.srcObject = e.streams[0];
+            setStatus('Connected');
+        }
+    };
+
+    pc.onconnectionstatechange = () => {
+        postMessage({ event: 'connectionState', state: pc.connectionState });
+        setStatus(pc.connectionState);
+    };
+
+    pc.oniceconnectionstatechange = () => {
+        postMessage({ event: 'iceState', state: pc.iceConnectionState });
+    };
+}
+
+async function startLocalStream(videoResolution) {
+    const constraints = {
+        audio: true,
+        video: { facingMode: 'user', width: videoResolution === '1080p' ? 1920 : 1280, height: videoResolution === '1080p' ? 1080 : 720 }
+    };
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia(constraints);
+        localVideo.srcObject = localStream;
+        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+        postMessage({ event: 'localStreamReady' });
+        setStatus('Ready');
+    } catch (err) {
+        postMessage({ event: 'error', message: err.message });
+        setStatus('Camera error');
+    }
+}
+
+async function createOffer() {
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    postMessage({ event: 'offer', sdp: offer.sdp, type: offer.type });
+}
+
+async function handleOffer(sdp, type) {
+    await pc.setRemoteDescription({ sdp, type });
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    postMessage({ event: 'answer', sdp: answer.sdp, type: answer.type });
+    flushCandidates();
+}
+
+async function handleAnswer(sdp, type) {
+    await pc.setRemoteDescription({ sdp, type });
+    flushCandidates();
+}
+
+async function addIceCandidate(candidate) {
+    if (pc.remoteDescription) {
+        await pc.addIceCandidate(candidate);
+    } else {
+        iceCandidateQueue.push(candidate);
+    }
+}
+
+async function flushCandidates() {
+    for (const c of iceCandidateQueue) {
+        await pc.addIceCandidate(c);
+    }
+    iceCandidateQueue = [];
+}
+
+function toggleCamera(useFront) {
+    if (!localStream) return;
+    const videoTrack = localStream.getVideoTracks()[0];
+    videoTrack.stop();
+    navigator.mediaDevices.getUserMedia({
+        video: { facingMode: useFront ? 'user' : 'environment' },
+        audio: false
+    }).then(stream => {
+        const newTrack = stream.getVideoTracks()[0];
+        localStream.removeTrack(videoTrack);
+        localStream.addTrack(newTrack);
+        localVideo.srcObject = localStream;
+        const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+        if (sender) sender.replaceTrack(newTrack);
+    });
+}
+
+function toggleMic(muted) {
+    if (localStream) {
+        localStream.getAudioTracks().forEach(t => t.enabled = !muted);
+    }
+}
+
+function hangup() {
+    if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+    if (pc) { pc.close(); pc = null; }
+    remoteVideo.srcObject = null;
+    localVideo.srcObject = null;
+    setStatus('Call ended');
+    postMessage({ event: 'hangup' });
+}
+</script>
+</body>
+</html>

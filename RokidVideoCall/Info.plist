@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSCameraUsageDescription</key>
+	<string>RokidVideoCall uses the camera for video calls.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>RokidVideoCall uses the microphone for audio during video calls.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>RokidVideoCall hosts a local TCP server so Rokid glasses can receive call status updates.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_rokidvideocall._tcp</string>
+	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>localhost</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+		</dict>
+	</dict>
+</dict>
+</plist>
