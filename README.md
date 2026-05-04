@@ -16,7 +16,7 @@ Converted from the Android original. Replaces the native WebRTC SDK + OkHttp Web
 - **WebSocket signaling**: Connects to a signaling server (ws://) to exchange SDP offers/answers and ICE candidates.
 - **Camera controls**: Front/back camera toggle mid-call; mute/unmute.
 - **Incoming calls**: Incoming SDP offer shown as an overlay with accept/decline.
-- **Glasses HUD**: TCP server on port 8087 broadcasts call state (idle / connecting / inCall / incoming / ended) as JSON to connected Rokid glasses.
+- **Glasses HUD**: Bluetooth/RokidSDK sends call state (idle / connecting / inCall / incoming / ended) as JSON to connected Rokid glasses.
 - **STUN / TURN**: Configurable ICE servers for NAT traversal.
 
 ## Android → iOS mapping
@@ -26,7 +26,7 @@ Converted from the Android original. Replaces the native WebRTC SDK + OkHttp Web
 | `org.webrtc` native SDK | WKWebView + JavaScript WebRTC (`RTCPeerConnection`) |
 | `SignalingClient` (OkHttp WS) | `SignalingClient` (URLSessionWebSocketTask) |
 | `WebRTCManager` | `WebRTCCoordinator` (Swift↔JS bridge via WKScriptMessageHandler) |
-| `RokidManager` (CxrApi) | `GlassesServer` (NWListener TCP :8087) |
+| `RokidManager` (CxrApi) | `GlassesServer` (RokidSDK) |
 | `Config.kt` | `SettingsStore` (UserDefaults) |
 
 ## Architecture
@@ -41,7 +41,7 @@ ContentView
 CallViewModel
   ├─ WebRTCCoordinator  (Swift ↔ JS bridge)
   ├─ SignalingClient    (URLSessionWebSocketTask)
-  └─ GlassesServer     (NWListener TCP :8087)
+  └─ GlassesServer     (RokidSDK)
 ```
 
 ## Signaling protocol
@@ -63,7 +63,7 @@ The app expects a WebSocket server at the configured URL. Messages are JSON:
 {"type":"call_end","data":{}}
 ```
 
-## Glasses protocol (TCP :8087)
+## Data sent to the glasses
 
 ```json
 {"type":"callState","state":"inCall","remote":"user123"}
@@ -95,7 +95,7 @@ The only thing left for each app is filling in the three credential constants (`
 ## Setup
 
 1. Deploy a signaling server (see the Android repo's `server/` directory for a Node.js reference).
-2. Open `RokidVideoCall.xcodeproj` in Xcode 15+.
+2. Open `RokidVideoCall.xcworkspace` in Xcode 15+ (after running `pod install`) 15+.
 3. Set your team in Signing & Capabilities.
 4. Build and run on an iPhone (iOS 17+).
 5. Open Settings, enter your signaling server WebSocket URL.
@@ -106,4 +106,4 @@ The only thing left for each app is filling in the three credential constants (`
 - iOS 17.0+
 - Xcode 15+
 - A WebRTC signaling server (WebSocket)
-- No third-party Swift dependencies
+- CocoaPods 1.15+ (run `pod install` — pulls RokidSDK)
