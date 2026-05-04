@@ -1,5 +1,11 @@
 # Rokid VideoCall iOS
 
+
+> **🔵 Connectivity Update — May 2025**
+> The glasses connection has been migrated from **raw TCP sockets** to
+> **Bluetooth via the Rokid AI glasses SDK** (`pod 'RokidSDK' ~> 1.10.2`).
+> No Wi-Fi port forwarding is needed. See **SDK Setup** below.
+
 iOS companion app for WebRTC video calling with Rokid AR glasses.
 
 Converted from the Android original. Replaces the native WebRTC SDK + OkHttp WebSocket with WKWebView JavaScript WebRTC + URLSessionWebSocketTask.
